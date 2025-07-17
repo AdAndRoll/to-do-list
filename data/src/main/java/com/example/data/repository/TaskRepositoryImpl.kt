@@ -1,5 +1,8 @@
 package com.example.data.repository
 
+import com.example.data.storage.model.TaskDto
+import com.example.data.storage.model.UnsplashPhotoDto
+import com.example.data.storage.model.UnsplashUrlsDto
 import com.example.data.storage.remote.api.TaskApi
 import com.example.data.storage.remote.api.UnsplashApi
 import com.example.domain.model.Task
@@ -10,22 +13,30 @@ import javax.inject.Inject
 import javax.inject.Named
 
 class TaskRepositoryImpl @Inject constructor(
-    private val taskApi :TaskApi,
+    private val taskApi: TaskApi,
     private val unsplashApi: UnsplashApi,
     @Named("UnsplashApiKey") private val unsplashApiKey: String
-):TaskRepository {
+) : TaskRepository {
     override fun getTasks(): Flow<List<Task>> {
         return flow {
-            val tasks = taskApi.getTasks().map { dto ->
-                val photo = unsplashApi.getRandomPhoto(unsplashApiKey)
-                Task(
-                    id = dto.id,
-                    title = dto.title,
-                    status = dto.completed,
-                    imageUrl = photo.urls.small
-                )
+            try {
+                val tasks = taskApi.getTasks().map { dto ->
+                    val photo = try {
+                        unsplashApi.getRandomPhoto(unsplashApiKey)
+                    } catch (e: Exception) {
+                        UnsplashPhotoDto(urls = UnsplashUrlsDto(small = "https://via.placeholder.com/50"))
+                    }
+                    Task(
+                        id = dto.id,
+                        title = dto.title,
+                        status = dto.completed,
+                        imageUrl = photo.urls.small
+                    )
+                }
+                emit(tasks)
+            } catch (e: Exception) {
+                throw RepositoryException("Failed to fetch tasks: ${e.message}", e)
             }
-            emit(tasks)
         }
     }
 
@@ -36,6 +47,5 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun deleteTask(id: Int): Boolean {
         TODO("Not yet implemented")
     }
-
-
 }
+
