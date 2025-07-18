@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.compose) // ✅ Вот это нужно!
     kotlin("kapt")
 }
 
@@ -32,6 +33,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    buildFeatures {
+        compose = true // ✅ Включаем поддержку Compose
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.13" // ✅ Укажи подходящую версию для Compose 1.6.4
+    }
     kotlin {
         compilerOptions {
             jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
@@ -48,6 +56,9 @@ dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.coroutines.core)
     implementation(libs.hilt.android)
+    implementation(libs.androidx.runtime.android)
+    implementation(libs.androidx.foundation.layout.android)
+    implementation(libs.androidx.material3.android)
     kapt(libs.hilt.compiler)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
@@ -55,6 +66,8 @@ dependencies {
     implementation(libs.coil)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.livedata.ktx)
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     implementation(project(":domain")) // Зависимость от модуля domain
     implementation(project(":data"))   // Зависимость от модуля data
     testImplementation(libs.junit)

@@ -7,6 +7,7 @@ import com.example.domain.repository.TaskRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
 import okhttp3.internal.wait
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -15,7 +16,7 @@ import javax.inject.Singleton
 
 
 @Module
-@InstallIn
+@InstallIn(SingletonComponent::class)
 object DataModule {
 
     @Provides
@@ -40,7 +41,7 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideTaskApi(@Named("JsonPlaceHolderRetrofit") retrofit: Retrofit):TaskApi{
+    fun provideTaskApi(@Named("JsonPlaceholderRetrofit") retrofit: Retrofit):TaskApi{
         return retrofit.create(TaskApi::class.java)
     }
 
@@ -54,7 +55,7 @@ object DataModule {
     @Singleton
     @Named("UnsplashApiKey")
     fun provideUnsplashApiKey(): String {
-        return "YOUR_UNSPLASH_API_KEY" // Замените на ваш API-ключ
+        return "92SsgcxvYhfODoIykOmLj6BopX_e9M0fzhrEoFXP1FU" // Замените на ваш API-ключ
     }
 
     @Provides
