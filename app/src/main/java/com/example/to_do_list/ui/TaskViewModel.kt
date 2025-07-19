@@ -1,6 +1,7 @@
 package com.example.to_do_list.ui
 
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.domain.model.Task
@@ -29,22 +30,42 @@ class TaskViewModel @Inject constructor(
         loadTasks()
     }
 
+
     private fun loadTasks() {
         viewModelScope.launch {
-            _uiState.value = UiState(isLoading = true)
+            _uiState.value = UiState(isLoading = true, tasks = emptyList(), error = null)
+
             try {
-                getTasksUseCase.execute().collect { tasks ->
-                    _uiState.value = UiState(tasks = tasks, isLoading = false)
+                val allTasks = mutableListOf<Task>()
+
+                getTasksUseCase.execute().collect { newTasksPortion ->
+                    allTasks.addAll(newTasksPortion)
+                    _uiState.value = _uiState.value.copy(
+                        tasks = allTasks.toList(),
+                        isLoading = true, // продолжаем показывать загрузку пока идут порции
+                        error = null
+                    )
+                    Log.d("TaskViewModel", "🧩 UI обновлён: загружено ${allTasks.size} задач")
                 }
-            } catch (e: Exception) {
-                _uiState.value = UiState(
-                    tasks = emptyList(),
-                    error = e.message ?: "Failed to load tasks",
+
+                // Когда поток завершился (collect вышел), снимаем загрузку
+                _uiState.value = _uiState.value.copy(
                     isLoading = false
                 )
+
+            } catch (e: Exception) {
+                _uiState.value = UiState(
+                    error = e.message ?: "Ошибка загрузки",
+                    isLoading = false,
+                    tasks = emptyList()
+                )
+                Log.e("TaskViewModel", "❌ Ошибка в loadTasks: ${e.message}")
             }
         }
     }
+
+
+
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)

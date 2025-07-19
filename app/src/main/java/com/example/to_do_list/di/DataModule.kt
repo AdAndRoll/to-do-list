@@ -55,7 +55,7 @@ object DataModule {
     @Singleton
     @Named("UnsplashApiKey")
     fun provideUnsplashApiKey(): String {
-        return "92SsgcxvYhfODoIykOmLj6BopX_e9M0fzhrEoFXP1FU" // Замените на ваш API-ключ
+        return "HgTZyDESWo_5dUDHLZqYjJ048itPufuXVcwb3a5qNRw" // Замените на ваш API-ключ
     }
 
     @Provides

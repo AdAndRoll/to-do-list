@@ -42,7 +42,8 @@ dependencies {
     implementation(libs.retrofit) // Retrofit для сетевых запросов
     implementation(libs.retrofit.converter.gson) // Конвертер для JSON
     implementation(libs.okhttp) // OkHttp для сетевых операций
-    implementation(libs.hilt.android) // Hilt для внедрения зависимостей
+    implementation(libs.hilt.android)
+    implementation(libs.androidx.media3.common.ktx) // Hilt для внедрения зависимостей
     kapt(libs.hilt.compiler) // Kapt для обработки аннотаций Hilt
 
     // Зависимость от модуля :domain
