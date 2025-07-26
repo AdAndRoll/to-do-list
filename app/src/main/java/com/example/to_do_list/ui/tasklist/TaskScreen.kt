@@ -1,4 +1,4 @@
-package com.example.to_do_list.ui
+package com.example.to_do_list.ui.tasklist
 
 import android.util.Log
 import androidx.compose.foundation.clickable
@@ -24,7 +24,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.domain.model.UnsplashPhoto
-import com.example.to_do_list.ui.state.UiState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -209,100 +208,6 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
 }
 
 
-@Composable
-fun TaskItem(task: com.example.domain.model.Task) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AsyncImage(
-            model = task.imageUrl.takeIf { !it.isNullOrBlank() }
-                ?: "[https://via.placeholder.com/50](https://via.placeholder.com/50)", // Плейсхолдер, если картинки нет
-            contentDescription = task.title,
-            modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            contentScale = ContentScale.Crop
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(text = task.title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = "Статус: ${if (task.status) "Выполнено" else "В процессе"}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            if (task.isLocalOnly) {
-                Text(
-                    text = "(Локальная)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-        }
-    }
-}
 
 
-@Composable
-fun UnsplashImagePicker(
-    photos: List<UnsplashPhoto>,
-    isLoading: Boolean,
-    onPhotoSelected: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onLoadMore: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Выберите картинку из Unsplash") },
-        text = {
-            Box(modifier = Modifier.fillMaxSize()) {
-                when {
-                    isLoading && photos.isEmpty() -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
-                    photos.isEmpty() && !isLoading -> {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("Не удалось загрузить изображения.")
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = onLoadMore) {
-                                Text("Повторить")
-                            }
-                        }
-                    }
-                    else -> {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            items(photos, key = { it.id }) { photo ->
-                                AsyncImage(
-                                    model = photo.smallUrl,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .aspectRatio(1f)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .clickable { onPhotoSelected(photo.regularUrl) },
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Отмена")
-            }
-        }
-    )
-}
+

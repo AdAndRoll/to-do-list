@@ -1,4 +1,4 @@
-package com.example.to_do_list.ui
+package com.example.to_do_list.ui.tasklist
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
