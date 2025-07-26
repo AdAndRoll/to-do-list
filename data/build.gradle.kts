@@ -46,6 +46,11 @@ dependencies {
     implementation(libs.androidx.media3.common.ktx) // Hilt для внедрения зависимостей
     kapt(libs.hilt.compiler) // Kapt для обработки аннотаций Hilt
 
+    //Room зависимости
+
+    implementation ("androidx.room:room-runtime:2.7.2") // Библиотека "Room"
+    kapt ("androidx.room:room-compiler:2.7.2") // Кодогенератор
+    implementation ("androidx.room:room-ktx:2.7.2") // Дополнительно для Kotlin Coroutines, Kotlin Flows
     // Зависимость от модуля :domain
     implementation(project(":domain"))
 
@@ -53,7 +58,11 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    testImplementation(libs.mockito.core) // Для mock-объектов
-    testImplementation(libs.mockito.kotlin) // Для Kotlin-совместимости
-    testImplementation(libs.kotlinx.coroutines.test) // Для тестирования Coroutines
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("app.cash.turbine:turbine:1.0.0")
+    testImplementation("org.mockito:mockito-core:5.0.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.0.0")
+    testImplementation("io.mockk:mockk:1.13.8")
+    testImplementation("app.cash.turbine:turbine:1.0.0")
+    testImplementation("junit:junit:4.13.2")
 }
