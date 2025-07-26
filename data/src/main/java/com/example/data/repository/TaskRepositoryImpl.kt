@@ -2,13 +2,13 @@ package com.example.data.repository
 
 import android.util.Log
 import com.example.data.storage.local.dao.TaskDao
-import com.example.data.storage.local.entity.TaskEntity // Убедитесь, что путь правильный
+import com.example.data.storage.local.entity.TaskEntity
 import com.example.data.storage.model.TaskDto
 import com.example.data.storage.model.UnsplashPhotoDto
 import com.example.data.storage.remote.api.TaskApi
 import com.example.data.storage.remote.api.UnsplashApi
 import com.example.domain.model.Task
-import com.example.domain.model.UnsplashPhoto // **ВАЖНО: Добавьте этот импорт**
+import com.example.domain.model.UnsplashPhoto
 import com.example.domain.repository.TaskRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -29,50 +29,56 @@ class TaskRepositoryImpl @Inject constructor(
     @Named("UnsplashApiKey") private val unsplashApiKey: String
 ) : TaskRepository {
 
-    // --- Мапперы (преобразование между слоями) ---
-
-    // Преобразование TaskDto (из сети) в TaskEntity (для Room)
+    // --- Мапперы (без изменений) ---
     private fun TaskDto.toEntity(imageUrl: String?): TaskEntity {
-        // Задачи из сети всегда isLocalOnly = false
-        return TaskEntity(id = this.id, title = this.title, completed = this.completed, imageUrl = imageUrl, isLocalOnly = false)
+        return TaskEntity(id = this.id, title = this.title, completed = this.completed, imageUrl = imageUrl, isLocalOnly = false, createdAt = System.currentTimeMillis())
     }
 
-    // Преобразование TaskEntity (из Room) в Task (для доменного слоя)
     private fun TaskEntity.toDomain(): Task {
-        // Используем поле isLocalOnly из TaskEntity
         return Task(id = this.id, title = this.title, status = this.completed, imageUrl = this.imageUrl, isLocalOnly = this.isLocalOnly)
     }
 
-    // Преобразование Task (из доменного слоя, для локальных изменений) в TaskEntity (для Room)
     private fun Task.toEntity(isLocalOnly: Boolean = false, isModified: Boolean = false): TaskEntity {
-        // Передаем значение isLocalOnly из доменной модели
-        return TaskEntity(id = this.id, title = this.title, completed = this.status, imageUrl = this.imageUrl, isLocalOnly = isLocalOnly, isModified = isModified)
+        return TaskEntity(id = this.id, title = this.title, completed = this.status, imageUrl = this.imageUrl, isLocalOnly = isLocalOnly, isModified = isModified, createdAt = System.currentTimeMillis())
     }
 
-    // **НОВЫЙ МАППЕР: UnsplashPhotoDto -> UnsplashPhoto (для доменного слоя)**
     private fun UnsplashPhotoDto.toDomain(): UnsplashPhoto {
         return UnsplashPhoto(
-            id = this.id, // Теперь получаем ID
-            regularUrl = this.urls.regular, // Теперь получаем regular URL
+            id = this.id,
+            regularUrl = this.urls.regular,
             smallUrl = this.urls.small
         )
     }
 
     // --- Вспомогательная функция для загрузки случайных фото Unsplash ---
-    // **ВАЖНО: Переименовано из `fetchRandomPhotos` в `fetchRandomPhotosInternal`**
+    // Устанавливаем default count = 100, чтобы соответствовать количеству задач
+// data/repository/TaskRepositoryImpl.kt
+
     private suspend fun fetchRandomPhotosInternal(count: Int = 100): List<UnsplashPhotoDto> = coroutineScope {
-        val batchSize = 30
-        val batches = (1..((count + batchSize - 1) / batchSize)).map {
+        val batchSize = 30 // Максимум фото за один запрос к Unsplash API
+        val numberOfBatches = (count + batchSize - 1) / batchSize // Сколько запросов нужно сделать
+
+        Log.d("UnsplashFetch", "Attempting to fetch $count photos in $numberOfBatches batches.")
+
+        val batches = (1..numberOfBatches).map { batchIndex ->
             async {
                 try {
-                    unsplashApi.getRandomPhotos(batchSize, unsplashApiKey)
+                    Log.d("UnsplashFetch", "Fetching batch $batchIndex...")
+                    val photosInBatch = unsplashApi.getRandomPhotos(batchSize, unsplashApiKey)
+                    Log.d("UnsplashFetch", "Batch $batchIndex fetched ${photosInBatch.size} photos.")
+                    photosInBatch
                 } catch (e: Exception) {
-                    Log.w("TaskRepository", "⚠️ Error fetching photos (batch $it): ${e.message}")
+                    Log.e("UnsplashFetch", "❌ Error fetching photos (batch $batchIndex): ${e.message}")
                     emptyList()
                 }
             }
         }
-        return@coroutineScope batches.awaitAll().flatten().shuffled().take(count)
+        // Собираем все фото, перемешиваем и берем только нужное количество
+        val allFetchedPhotos = batches.awaitAll().flatten()
+        val finalPhotos = allFetchedPhotos.shuffled().take(count)
+        Log.d("UnsplashFetch", "Total photos fetched (before shuffle/take): ${allFetchedPhotos.size}")
+        Log.d("UnsplashFetch", "Final photos to return: ${finalPhotos.size}")
+        return@coroutineScope finalPhotos
     }
 
     // --- Основные методы репозитория (реализация TaskRepository) ---
@@ -86,22 +92,29 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun refreshTasksFromNetworkAndSaveLocally(): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val dtos = taskApi.getTasks()
-                // **Используем новое имя: fetchRandomPhotosInternal**
-                val photos = fetchRandomPhotosInternal(count = dtos.size.coerceAtMost(100))
+                // 1. Загружаем задачи из сети, ограничивая их до 100
+                val networkTasks = taskApi.getTasks().take(100) // <-- Ограничиваем до 100 задач!
 
-                val tasksToInsert = dtos.mapIndexed { index, dto ->
-                    // **ИСПРАВЛЕНИЕ ЗДЕСЬ:** Добавляем 'id = "placeholder_id_$index"'
-                    val photo = photos.getOrNull(index) ?: UnsplashPhotoDto(
-                        id = "placeholder_id_${index}", // <--- ДОБАВЛЕНО!
-                        urls = UnsplashPhotoDto.Urls(small = "https://via.placeholder.com/50", regular = "https://via.placeholder.com/100")
-                    )
-                    dto.toEntity(photo.urls.small) // Для imageUrl задачи пока используем small
+                // 2. Загружаем столько же случайных фото из Unsplash, сколько у нас задач
+                val photos = fetchRandomPhotosInternal(count = networkTasks.size) // <-- Точное количество фото
+
+                // 3. Очищаем старые сетевые задачи в Room
+                taskDao.deleteAllNonLocalTasks()
+
+                // 4. Преобразуем и сохраняем сетевые задачи в Room, присваивая случайные картинки
+                val tasksToInsert = networkTasks.mapIndexed { index, dto ->
+                    val imageUrlForNetworkTask = if (photos.isNotEmpty()) {
+                        // Используем фото по индексу. Если фото меньше, чем задач, они будут повторяться циклически.
+                        photos[index % photos.size].urls.small
+                    } else {
+                        // Если фото вообще не загрузились, используем общую заглушку
+                        "https://via.placeholder.com/50"
+                    }
+                    dto.toEntity(imageUrl = imageUrlForNetworkTask)
                 }
 
-                taskDao.deleteAllNonLocalTasks()
                 taskDao.insertAllTasks(tasksToInsert)
-                Log.d("TaskRepository", "✅ Tasks successfully refreshed from network and saved to Room.")
+                Log.d("TaskRepository", "✅ Tasks successfully refreshed from network and saved to Room. Count: ${tasksToInsert.size}")
                 true
             } catch (e: Exception) {
                 Log.e("TaskRepository", "❌ Error refreshing tasks from network: ${e.message}")
@@ -110,28 +123,34 @@ class TaskRepositoryImpl @Inject constructor(
         }
     }
 
-    // --- Заглушки для будущих методов (пока не меняем) ---
     override suspend fun addTask(task: Task): Boolean {
-        Log.w("TaskRepository", "addTask not yet implemented. This will add a local-only task to Room.")
-        // TODO: Implement adding a new task to Room and setting isLocalOnly = true
-        return false
+        return withContext(Dispatchers.IO) {
+            try {
+                val taskEntity = task.toEntity(isLocalOnly = true)
+                taskDao.insertTask(taskEntity)
+                Log.d("TaskRepository", "✅ Задача '${task.title}' успешно добавлена в Room (локально).")
+                true
+            } catch (e: Exception) {
+                Log.e("TaskRepository", "❌ Ошибка при добавлении задачи '${task.title}' в Room: ${e.message}")
+                false
+            }
+        }
     }
 
     override suspend fun updateTask(task: Task): Boolean {
         Log.w("TaskRepository", "updateTask not yet implemented. This will update an existing task in Room and set isModified = true.")
-        // TODO: Implement updating an existing task in Room and setting isModified = true
         return false
     }
 
     override suspend fun deleteTask(id: Int): Boolean {
         Log.w("TaskRepository", "deleteTask not yet implemented. This will delete a task from Room.")
-        // TODO: Implement deleting a task from Room
         return false
     }
 
     override suspend fun getUnsplashPhotos(count: Int): List<UnsplashPhoto> {
         return withContext(Dispatchers.IO) {
             try {
+                // Этот метод используется для UI-выбора фото, поэтому здесь count передается из ViewModel (обычно 30)
                 fetchRandomPhotosInternal(count).map { it.toDomain() }
             } catch (e: Exception) {
                 Log.e("TaskRepository", "❌ Error getting Unsplash photos for UI: ${e.message}")

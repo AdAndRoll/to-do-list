@@ -4,8 +4,14 @@ import com.example.domain.model.Task
 import com.example.domain.repository.TaskRepository
 import kotlinx.coroutines.flow.Flow
 
-class GetTasksUseCase(private val taskRepository:TaskRepository) {
+class GetTasksUseCase(private val taskRepository: TaskRepository) { // Принимает зависимость через конструктор
+
     fun execute(): Flow<List<Task>> {
         return taskRepository.getTasks()
+    }
+
+    suspend fun refreshTasksFromNetwork():Boolean  {
+        return taskRepository.refreshTasksFromNetworkAndSaveLocally()
+
     }
 }

@@ -1,12 +1,17 @@
 package com.example.to_do_list.di
 
+import android.content.Context
+import androidx.room.Room
 import com.example.data.repository.TaskRepositoryImpl
+import com.example.data.storage.local.dao.TaskDao
+import com.example.data.storage.local.database.AppDatabase
 import com.example.data.storage.remote.api.TaskApi
 import com.example.data.storage.remote.api.UnsplashApi
 import com.example.domain.repository.TaskRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.internal.wait
 import retrofit2.Retrofit
@@ -55,13 +60,43 @@ object DataModule {
     @Singleton
     @Named("UnsplashApiKey")
     fun provideUnsplashApiKey(): String {
-        return "HgTZyDESWo_5dUDHLZqYjJ048itPufuXVcwb3a5qNRw" // Замените на ваш API-ключ
+        return "92SsgcxvYhfODoIykOmLj6BopX_e9M0fzhrEoFXP1FU" // Замените на ваш API-ключ
+    }
+
+
+    //Room
+    @Provides
+    @Singleton
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        return Room.databaseBuilder(
+            context.applicationContext,
+            AppDatabase::class.java,
+            "tasks_database" // Имя вашей базы данных
+        )
+            // Если вы меняете схему (version), но не хотите терять данные, используйте миграции.
+            //
+            //
+            //.fallbackToDestructiveMigration(true) // Используйте ТОЛЬКО для разработки! Удаляет базу данных при изменении версии.
+            .build()
     }
 
     @Provides
     @Singleton
-    fun provideTaskRepository(impl: TaskRepositoryImpl): TaskRepository {
-        return impl
+    fun provideTaskDao(appDatabase: AppDatabase): TaskDao {
+        return appDatabase.taskDao()
     }
+
+    // Обновите provideTaskRepository, чтобы включить TaskDao
+    @Provides
+    @Singleton
+    fun provideTaskRepository(
+        taskApi: TaskApi,
+        unsplashApi: UnsplashApi,
+        taskDao: TaskDao, // <-- Теперь TaskDao инжектируется
+        @Named("UnsplashApiKey") unsplashApiKey: String
+    ): TaskRepository {
+        return TaskRepositoryImpl(taskApi, unsplashApi, taskDao, unsplashApiKey)
+    }
+
 
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -20,24 +21,29 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.domain.model.UnsplashPhoto
 import com.example.to_do_list.ui.state.UiState
-import kotlinx.coroutines.launch // Хотя сейчас не используется, оставим на будущее для snackbar
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview
 @Composable
 fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
     // Состояния из ViewModel
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val unsplashPhotos by viewModel.unsplashPhotos.collectAsState()
     val isPhotosLoading by viewModel.isPhotosLoading.collectAsState()
 
     // Состояния для управления UI
     val snackbarHostState = remember { SnackbarHostState() }
-    // Удалены: newTaskTitle, selectedImageUrl (так как нет функции добавления задачи)
-    var showImagePickerDialog by remember { mutableStateOf(false) } // Для управления видимостью диалога выбора картинок
+    val scope = rememberCoroutineScope()
+    val lazyListState = rememberLazyListState()
+    // Состояния для новой задачи
+    var newTaskTitle by remember { mutableStateOf("") }
+    var selectedImageUrl by remember { mutableStateOf<String?>(null) }
+    var showImagePickerDialog by remember { mutableStateOf(false) }
 
     // Отображение Snackbar при ошибках
     LaunchedEffect(uiState.error) {
@@ -46,17 +52,28 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
             viewModel.clearError()
         }
     }
+    LaunchedEffect(uiState.tasks) {
+        // Проверяем, что список не пуст и что первая задача - это новая локальная задача
+        // (можно использовать createdAt, если оно есть, или isLocalOnly и ID)
+        // Для простоты, если список обновился и не пуст, прокручиваем к началу.
+        if (uiState.tasks.isNotEmpty()) {
+            // Можно добавить более сложную проверку, если нужно прокручивать только при добавлении
+            // конкретно новой локальной задачи, а не при любом изменении списка.
+            // Например, проверять, изменился ли размер списка и является ли первый элемент локальным.
+            // Но для вашей цели "новая задача всегда первая" этого достаточно.
+            lazyListState.animateScrollToItem(0) // Прокручиваем к первому элементу с анимацией
+        }
+    }
 
-    // Диалог выбора картинок Unsplash
+
+        // Диалог выбора картинок Unsplash
     if (showImagePickerDialog) {
         UnsplashImagePicker(
             photos = unsplashPhotos,
             isLoading = isPhotosLoading,
             onPhotoSelected = { photoUrl ->
-                // ВАЖНО: Сейчас выбранный URL никуда не сохраняется в TaskScreen,
-                // так как мы убрали addNewTask и связанное с ним поле.
-                // В будущем, этот photoUrl будет передаваться в addNewTask ViewModel.
-                Log.d("TaskScreen", "Выбрана картинка: $photoUrl (пока не используется для задачи)")
+                selectedImageUrl = photoUrl // Сохраняем выбранный URL
+                Log.d("TaskScreen", "Выбрана картинка: $photoUrl")
                 showImagePickerDialog = false
                 viewModel.clearUnsplashPhotos()
             },
@@ -77,17 +94,6 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
             TopAppBar(
                 title = { Text("Мои Задачи") },
                 actions = {
-                    // Кнопка для открытия диалога выбора картинки (пока здесь, можно перенести)
-                    Button(
-                        onClick = {
-                            showImagePickerDialog = true
-                            viewModel.loadUnsplashPhotos()
-                        },
-                        // Возможно, стоит добавить модификатор для отступа, если она будет всегда в TopAppBar
-                    ) {
-                        Text("Выбрать фото")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp)) // Отступ между кнопками
                     IconButton(onClick = { viewModel.refreshTasksFromNetwork() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить задачи")
                     }
@@ -102,6 +108,62 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Блок для добавления новой задачи
+            OutlinedTextField(
+                value = newTaskTitle,
+                onValueChange = { newTaskTitle = it },
+                label = { Text("Заголовок задачи") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    showImagePickerDialog = true
+                    viewModel.loadUnsplashPhotos()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Выбрать картинку")
+            }
+
+            selectedImageUrl?.let { url ->
+                Spacer(modifier = Modifier.height(8.dp))
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Выбранная картинка для задачи",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+
+                onClick = {
+                    if (newTaskTitle.isNotBlank()) {
+                        viewModel.addNewTask(
+                            title = newTaskTitle,
+                            imageUrl = selectedImageUrl
+                        )
+                        newTaskTitle = "" // Очищаем поле ввода
+                        selectedImageUrl = null // Сбрасываем выбранную картинку
+                    } else {
+
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Заголовок задачи не может быть пустым")
+                        }
+                    }
+                },
+
+                enabled = !uiState.isLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Добавить задачу")
+            }
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Отображение списка задач
             when {
@@ -123,7 +185,7 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Задач нет. Нажмите 'Обновить' для загрузки.",
+                            text = "Задач нет. Добавьте новую или обновите.",
                             modifier = Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -131,42 +193,13 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                 }
                 else -> {
                     LazyColumn(
+                        state = lazyListState,
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
                     ) {
                         items(uiState.tasks, key = { it.id }) { task ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AsyncImage(
-                                    model = task.imageUrl.takeIf { !it.isNullOrBlank() }
-                                        ?: "https://via.placeholder.com/50",
-                                    contentDescription = task.title,
-                                    modifier = Modifier
-                                        .size(50.dp)
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(text = task.title, style = MaterialTheme.typography.titleMedium)
-                                    Text(
-                                        text = "Статус: ${if (task.status) "Выполнено" else "В процессе"}",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    if (task.isLocalOnly) {
-                                        Text(
-                                            text = "(Локальная)",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.secondary
-                                        )
-                                    }
-                                }
-                            }
+                            TaskItem(task = task) // Выделяем отображение элемента списка в отдельный компонент
                         }
                     }
                 }
@@ -175,7 +208,43 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
     }
 }
 
-// Композуемый UnsplashImagePicker остается без изменений
+
+@Composable
+fun TaskItem(task: com.example.domain.model.Task) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = task.imageUrl.takeIf { !it.isNullOrBlank() }
+                ?: "[https://via.placeholder.com/50](https://via.placeholder.com/50)", // Плейсхолдер, если картинки нет
+            contentDescription = task.title,
+            modifier = Modifier
+                .size(50.dp)
+                .clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(text = task.title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Статус: ${if (task.status) "Выполнено" else "В процессе"}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (task.isLocalOnly) {
+                Text(
+                    text = "(Локальная)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+        }
+    }
+}
+
+
 @Composable
 fun UnsplashImagePicker(
     photos: List<UnsplashPhoto>,

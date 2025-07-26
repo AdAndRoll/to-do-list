@@ -5,6 +5,6 @@ data class Task(
     val title:String,
     val status:Boolean,
     val imageUrl: String? = null,
-
+    val isLocalOnly: Boolean = false
     )
 
