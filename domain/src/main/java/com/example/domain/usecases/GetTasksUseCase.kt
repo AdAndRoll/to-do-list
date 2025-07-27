@@ -9,9 +9,4 @@ class GetTasksUseCase(private val taskRepository: TaskRepository) { // Прин�
     fun execute(): Flow<List<Task>> {
         return taskRepository.getTasks()
     }
-
-    suspend fun refreshTasksFromNetwork():Boolean  {
-        return taskRepository.refreshTasksFromNetworkAndSaveLocally()
-
-    }
 }

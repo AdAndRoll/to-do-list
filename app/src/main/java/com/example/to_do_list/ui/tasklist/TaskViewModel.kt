@@ -8,6 +8,8 @@ import com.example.domain.model.UnsplashPhoto // <-- НОВЫЙ ИМПОРТ
 import com.example.domain.usecases.AddTaskUseCase
 import com.example.domain.usecases.GetTasksUseCase
 import com.example.domain.usecases.GetUnsplashPhotosUseCase // <-- НОВЫЙ ИМПОРТ
+import com.example.domain.usecases.RefreshTasksUseCase
+import com.example.domain.usecases.UpdateTaskUseCase
 import com.example.to_do_list.ui.state.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,14 +18,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
 
 @HiltViewModel
 class TaskViewModel @Inject constructor(
     private val getTasksUseCase: GetTasksUseCase,
     private val getUnsplashPhotosUseCase: GetUnsplashPhotosUseCase,
-    private val addTaskUseCase: AddTaskUseCase// <-- ИНЖЕКТИРУЕМ GetUnsplashPhotosUseCase
+    private val addTaskUseCase: AddTaskUseCase,
+    private val refreshTasksUseCase: RefreshTasksUseCase,
+    private val updateTaskUseCase: UpdateTaskUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState(isLoading = true, tasks = emptyList(), error = null))
@@ -109,7 +115,7 @@ class TaskViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             Log.d("TaskViewModel", "🔄 Запускаем обновление задач из сети...")
-            val success = getTasksUseCase.refreshTasksFromNetwork()
+            val success = refreshTasksUseCase.execute()
             if (success) {
                 Log.d("TaskViewModel", "✅ Задачи успешно обновлены из сети и сохранены в Room.")
             } else {
@@ -160,4 +166,39 @@ class TaskViewModel @Inject constructor(
             }
         }
     }
+
+    fun toggleTaskStatus(task: Task) {
+        viewModelScope.launch {
+            // Создаем новую Task с измененным статусом (копируя все остальные поля)
+            val updatedTask = task.copy(status = !task.status)
+            Log.d("TaskViewModel", "🔄 Переключаем статус для задачи '${task.title}' на ${updatedTask.status}")
+            val success = updateTaskUseCase.execute(updatedTask) // <-- Вызываем Use Case
+            if (!success) {
+                _uiState.update { it.copy(error = "Не удалось обновить статус задачи '${task.title}'.") }
+                Log.e("TaskViewModel", "❌ Не удалось обновить статус для задачи '${task.title}'.")
+            } else {
+                // UI обновится автоматически благодаря Flow из Room
+                Log.d("TaskViewModel", "✅ Статус для задачи '${task.title}' успешно обновлен.")
+            }
+        }
+    }
+
+    fun saveEditedTask(task: Task) {
+        viewModelScope.launch {
+            if (task.title.isBlank()) {
+                _uiState.update { it.copy(error = "Заголовок задачи не может быть пустым.") }
+                return@launch
+            }
+            Log.d("TaskViewModel", "📝 Сохраняем отредактированную задачу '${task.title}' (ID: ${task.id})")
+            val success = updateTaskUseCase.execute(task) // Используем тот же Use Case для обновления
+            if (!success) {
+                _uiState.update { it.copy(error = "Не удалось сохранить изменения для задачи '${task.title}'.") }
+                Log.e("TaskViewModel", "❌ Не удалось сохранить изменения для задачи '${task.title}'.")
+            } else {
+                Log.d("TaskViewModel", "✅ Задача '${task.title}' успешно отредактирована.")
+            }
+        }
+    }
+
+
 }

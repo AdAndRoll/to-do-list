@@ -29,7 +29,7 @@ class TaskRepositoryImpl @Inject constructor(
     @Named("UnsplashApiKey") private val unsplashApiKey: String
 ) : TaskRepository {
 
-    // --- Мапперы (без изменений) ---
+    // --- Мапперы ---
     private fun TaskDto.toEntity(imageUrl: String?): TaskEntity {
         return TaskEntity(id = this.id, title = this.title, completed = this.completed, imageUrl = imageUrl, isLocalOnly = false, createdAt = System.currentTimeMillis())
     }
@@ -38,8 +38,26 @@ class TaskRepositoryImpl @Inject constructor(
         return Task(id = this.id, title = this.title, status = this.completed, imageUrl = this.imageUrl, isLocalOnly = this.isLocalOnly)
     }
 
-    private fun Task.toEntity(isLocalOnly: Boolean = false, isModified: Boolean = false): TaskEntity {
-        return TaskEntity(id = this.id, title = this.title, completed = this.status, imageUrl = this.imageUrl, isLocalOnly = isLocalOnly, isModified = isModified, createdAt = System.currentTimeMillis())
+    private fun Task.toEntity(
+        isLocalOnly: Boolean = false,
+        isModified: Boolean = false,
+        existingCreatedAt: Long? = null,
+        specificId: Int? = null
+    ): TaskEntity {
+        val entityId = specificId ?: this.id
+
+
+        val createdAtValue = existingCreatedAt ?: System.currentTimeMillis()
+
+        return TaskEntity(
+            id = entityId,
+            title = this.title,
+            completed = this.status,
+            imageUrl = this.imageUrl,
+            isLocalOnly = isLocalOnly,
+            isModified = isModified,
+            createdAt = createdAtValue
+        )
     }
 
     private fun UnsplashPhotoDto.toDomain(): UnsplashPhoto {
@@ -51,8 +69,6 @@ class TaskRepositoryImpl @Inject constructor(
     }
 
     // --- Вспомогательная функция для загрузки случайных фото Unsplash ---
-    // Устанавливаем default count = 100, чтобы соответствовать количеству задач
-// data/repository/TaskRepositoryImpl.kt
 
     private suspend fun fetchRandomPhotosInternal(count: Int = 100): List<UnsplashPhotoDto> = coroutineScope {
         val batchSize = 30 // Максимум фото за один запрос к Unsplash API
@@ -126,7 +142,13 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun addTask(task: Task): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val taskEntity = task.toEntity(isLocalOnly = true)
+                val taskId = if (task.id == 0 && task.isLocalOnly) generateUniqueLocalId() else task.id
+                val taskEntity = task.toEntity(
+                    isLocalOnly = true,
+                    isModified = false,
+                    existingCreatedAt = null, // Новая задача, время создания будет System.currentTimeMillis()
+                    specificId = taskId // Передаем сгенерированный ID
+                )
                 taskDao.insertTask(taskEntity)
                 Log.d("TaskRepository", "✅ Задача '${task.title}' успешно добавлена в Room (локально).")
                 true
@@ -138,8 +160,28 @@ class TaskRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateTask(task: Task): Boolean {
-        Log.w("TaskRepository", "updateTask not yet implemented. This will update an existing task in Room and set isModified = true.")
-        return false
+        return withContext(Dispatchers.IO) {
+            try {
+                val existingTaskEntity = taskDao.getTaskById(task.id)
+                if (existingTaskEntity == null) {
+                    Log.w("TaskRepository", "⚠️ Task with ID ${task.id} not found for update.")
+                    return@withContext false
+                }
+
+                val taskEntity = task.toEntity(
+                    isLocalOnly = existingTaskEntity.isLocalOnly,
+                    isModified = true,
+                    existingCreatedAt = existingTaskEntity.createdAt,
+                    specificId = existingTaskEntity.id // Убедимся, что ID тоже корректно передается
+                )
+                taskDao.updateTask(taskEntity)
+                Log.d("TaskRepository", "✅ Task '${task.title}' (ID: ${task.id}) successfully updated in Room.")
+                true
+            } catch (e: Exception) {
+                Log.e("TaskRepository", "❌ Error updating task '${task.title}' (ID: ${task.id}) in Room: ${e.message}")
+                false
+            }
+        }
     }
 
     override suspend fun deleteTask(id: Int): Boolean {

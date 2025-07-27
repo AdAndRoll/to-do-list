@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.domain.model.Task // <-- Необходим импорт Task
 import com.example.domain.model.UnsplashPhoto
 import kotlinx.coroutines.launch
 
@@ -32,17 +33,23 @@ import kotlinx.coroutines.launch
 fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
     // Состояния из ViewModel
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val unsplashPhotos by viewModel.unsplashPhotos.collectAsState()
-    val isPhotosLoading by viewModel.isPhotosLoading.collectAsState()
+    val unsplashPhotos by viewModel.unsplashPhotos.collectAsStateWithLifecycle()
+    val isPhotosLoading by viewModel.isPhotosLoading.collectAsStateWithLifecycle()
 
     // Состояния для управления UI
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+
     // Состояния для новой задачи
     var newTaskTitle by remember { mutableStateOf("") }
     var selectedImageUrl by remember { mutableStateOf<String?>(null) }
     var showImagePickerDialog by remember { mutableStateOf(false) }
+
+    // <-- НОВЫЕ СОСТОЯНИЯ ДЛЯ РЕДАКТИРОВАНИЯ
+    var taskToEdit: Task? by remember { mutableStateOf(null) } // Задача, которую сейчас редактируем
+    var showEditTaskDialog by remember { mutableStateOf(false) } // Флаг для отображения диалога редактирования
+    // <-- КОНЕЦ НОВЫХ СОСТОЯНИЙ
 
     // Отображение Snackbar при ошибках
     LaunchedEffect(uiState.error) {
@@ -52,20 +59,13 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
         }
     }
     LaunchedEffect(uiState.tasks) {
-        // Проверяем, что список не пуст и что первая задача - это новая локальная задача
-        // (можно использовать createdAt, если оно есть, или isLocalOnly и ID)
-        // Для простоты, если список обновился и не пуст, прокручиваем к началу.
         if (uiState.tasks.isNotEmpty()) {
-            // Можно добавить более сложную проверку, если нужно прокручивать только при добавлении
-            // конкретно новой локальной задачи, а не при любом изменении списка.
-            // Например, проверять, изменился ли размер списка и является ли первый элемент локальным.
-            // Но для вашей цели "новая задача всегда первая" этого достаточно.
-            lazyListState.animateScrollToItem(0) // Прокручиваем к первому элементу с анимацией
+            // Прокручиваем к началу, если список не пуст
+            lazyListState.animateScrollToItem(0)
         }
     }
 
-
-        // Диалог выбора картинок Unsplash
+    // Диалог выбора картинок Unsplash (для добавления новой задачи)
     if (showImagePickerDialog) {
         UnsplashImagePicker(
             photos = unsplashPhotos,
@@ -85,6 +85,33 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
             }
         )
     }
+
+    // <-- НОВЫЙ ДИАЛОГ РЕДАКТИРОВАНИЯ ЗАДАЧИ
+    if (showEditTaskDialog && taskToEdit != null) {
+        EditTaskDialog(
+            taskToEdit = taskToEdit!!, // Передаем задачу для редактирования
+            unsplashPhotos = unsplashPhotos, // Список фото для выбора
+            isPhotosLoading = isPhotosLoading, // Статус загрузки фото
+            onSaveEdit = { updatedTask ->
+                viewModel.saveEditedTask(updatedTask) // Вызываем метод ViewModel для сохранения
+                taskToEdit = null // Сбрасываем задачу для редактирования
+                showEditTaskDialog = false // Закрываем диалог
+                viewModel.clearUnsplashPhotos() // Очищаем фото после выбора
+            },
+            onDismiss = {
+                taskToEdit = null // Сбрасываем задачу
+                showEditTaskDialog = false // Закрываем диалог
+                viewModel.clearUnsplashPhotos() // Очищаем фото при отмене
+            },
+            onLoadMorePhotos = { viewModel.loadUnsplashPhotos() }, // Загрузка еще фото
+            onSelectNewPhoto = { photoUrl ->
+                // Возможно, здесь можно как-то обработать выбор фото, если нужно
+                // для прямого отображения в UI TaskScreen, но диалог EditTaskDialog
+                // уже сам обновляет свое внутреннее состояние editedImageUrl.
+            }
+        )
+    }
+    // <-- КОНЕЦ НОВОГО ДИАЛОГА
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -107,7 +134,7 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Блок для добавления новой задачи
+            // Блок для добавления новой задачи (без изменений)
             OutlinedTextField(
                 value = newTaskTitle,
                 onValueChange = { newTaskTitle = it },
@@ -140,7 +167,6 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Button(
-
                 onClick = {
                     if (newTaskTitle.isNotBlank()) {
                         viewModel.addNewTask(
@@ -150,13 +176,11 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                         newTaskTitle = "" // Очищаем поле ввода
                         selectedImageUrl = null // Сбрасываем выбранную картинку
                     } else {
-
                         scope.launch {
                             snackbarHostState.showSnackbar("Заголовок задачи не может быть пустым")
                         }
                     }
                 },
-
                 enabled = !uiState.isLoading,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -164,7 +188,7 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Отображение списка задач
+            // Отображение списка задач (с изменениями для редактирования)
             when {
                 uiState.isLoading -> {
                     Box(
@@ -198,7 +222,17 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                             .weight(1f)
                     ) {
                         items(uiState.tasks, key = { it.id }) { task ->
-                            TaskItem(task = task) // Выделяем отображение элемента списка в отдельный компонент
+                            TaskItem(
+                                task = task,
+                                onToggleStatus = { clickedTask ->
+                                    viewModel.toggleTaskStatus(clickedTask)
+                                },
+                                onEditTask = { taskToEditPassed -> // <-- НОВАЯ ЛЯМБДА ВЫЗЫВАЕТ ДИАЛОГ
+                                    taskToEdit = taskToEditPassed // Сохраняем задачу, которую хотим редактировать
+                                    showEditTaskDialog = true      // Открываем диалог редактирования
+                                    viewModel.loadUnsplashPhotos() // Загружаем фото для picker'а
+                                }
+                            )
                         }
                     }
                 }
@@ -206,8 +240,3 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
         }
     }
 }
-
-
-
-
-
