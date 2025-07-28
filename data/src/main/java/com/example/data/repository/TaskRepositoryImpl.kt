@@ -185,10 +185,24 @@ class TaskRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteTask(id: Int): Boolean {
-        Log.w("TaskRepository", "deleteTask not yet implemented. This will delete a task from Room.")
-        return false
+        return withContext(Dispatchers.IO) {
+            try {
+                // Сначала получаем сущность, так как @Delete работает с сущностями
+                val taskToDelete = taskDao.getTaskById(id)
+                if (taskToDelete != null) {
+                    taskDao.deleteTask(taskToDelete)
+                    Log.d("TaskRepository", "✅ Задача с ID $id успешно удалена из Room.")
+                    true
+                } else {
+                    Log.w("TaskRepository", "⚠️ Задача с ID $id не найдена для удаления.")
+                    false
+                }
+            } catch (e: Exception) {
+                Log.e("TaskRepository", "❌ Ошибка при удалении задачи с ID $id из Room: ${e.message}")
+                false
+            }
+        }
     }
-
     override suspend fun getUnsplashPhotos(count: Int): List<UnsplashPhoto> {
         return withContext(Dispatchers.IO) {
             try {

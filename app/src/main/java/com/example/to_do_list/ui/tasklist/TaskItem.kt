@@ -32,14 +32,16 @@ import com.example.domain.model.Task
 fun TaskItem(
     task:Task,
     onToggleStatus: (Task) -> Unit,
-    onEditTask: (Task) -> Unit
+    onEditTask: (Task) -> Unit,
+    onDeleteTask:(Int) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable( // <-- Используем combinedClickable
                 onClick = { onToggleStatus(task) }, // Короткое нажатие переключает статус
-                onLongClick = { onEditTask(task) } // Долгое нажатие открывает редактирование
+                onLongClick = { onEditTask(task) } ,// Долгое нажатие открывает редактирование
+                onDoubleClick = { onDeleteTask(task.id) }
             )
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically

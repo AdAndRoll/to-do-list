@@ -24,7 +24,8 @@ fun EditTaskDialog(
     onSaveEdit: (Task) -> Unit, // Лямбда для сохранения изменений
     onDismiss: () -> Unit, // Лямбда для закрытия диалога без сохранения
     onLoadMorePhotos: () -> Unit, // Лямбда для загрузки новых фото Unsplash
-    onSelectNewPhoto: (String?) -> Unit // Лямбда для выбора новой картинки
+    onSelectNewPhoto: (String?) -> Unit ,// Лямбда для выбора новой картинки
+    onDeleteTask: (Int) -> Unit
 ) {
     var editedTitle by remember { mutableStateOf(taskToEdit.title) }
     // Используем taskToEdit.imageUrl как начальное значение, если есть
@@ -84,9 +85,17 @@ fun EditTaskDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    Button(onClick = onDismiss) {
-                        Text("Отмена")
+                    // Кнопка "Удалить"
+                    Button(
+                        onClick = {
+                            onDeleteTask(taskToEdit.id) // Вызываем лямбду удаления с ID задачи
+                            onDismiss() // Закрываем диалог после удаления
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) // Красный цвет для кнопки удаления
+                    ) {
+                        Text("Удалить")
                     }
+
                     Button(
                         onClick = {
                             if (editedTitle.isNotBlank()) {
@@ -102,6 +111,10 @@ fun EditTaskDialog(
                     ) {
                         Text("Сохранить")
                     }
+                }
+                Spacer(modifier =Modifier.height(8.dp))
+                Button(onClick = onDismiss) {
+                    Text("Отмена")
                 }
             }
         }

@@ -86,7 +86,7 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
         )
     }
 
-    // <-- НОВЫЙ ДИАЛОГ РЕДАКТИРОВАНИЯ ЗАДАЧИ
+
     if (showEditTaskDialog && taskToEdit != null) {
         EditTaskDialog(
             taskToEdit = taskToEdit!!, // Передаем задачу для редактирования
@@ -105,13 +105,15 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
             },
             onLoadMorePhotos = { viewModel.loadUnsplashPhotos() }, // Загрузка еще фото
             onSelectNewPhoto = { photoUrl ->
-                // Возможно, здесь можно как-то обработать выбор фото, если нужно
-                // для прямого отображения в UI TaskScreen, но диалог EditTaskDialog
-                // уже сам обновляет свое внутреннее состояние editedImageUrl.
+            },
+            onDeleteTask = { taskId -> // <-- ВЫЗЫВАЕМ МЕТОД УДАЛЕНИЯ ИЗ VIEWMOTEL
+                viewModel.deleteTask(taskId)
+                taskToEdit = null // Сбрасываем задачу для редактирования
+                showEditTaskDialog = false // Закрываем диалог
             }
         )
     }
-    // <-- КОНЕЦ НОВОГО ДИАЛОГА
+
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -228,9 +230,15 @@ fun TaskScreen(viewModel: TaskViewModel = hiltViewModel()) {
                                     viewModel.toggleTaskStatus(clickedTask)
                                 },
                                 onEditTask = { taskToEditPassed -> // <-- НОВАЯ ЛЯМБДА ВЫЗЫВАЕТ ДИАЛОГ
-                                    taskToEdit = taskToEditPassed // Сохраняем задачу, которую хотим редактировать
-                                    showEditTaskDialog = true      // Открываем диалог редактирования
-                                    viewModel.loadUnsplashPhotos() // Загружаем фото для picker'а
+                                    taskToEdit =
+                                        taskToEditPassed // Сохраняем задачу, которую хотим редактировать
+                                    showEditTaskDialog =
+                                        true      // Открываем диалог редактирования
+                                    viewModel.loadUnsplashPhotos()
+                                    // Загружаем фото для picker'а
+                                },
+                                onDeleteTask = { taskId ->
+                                    viewModel.deleteTask(taskId)
                                 }
                             )
                         }

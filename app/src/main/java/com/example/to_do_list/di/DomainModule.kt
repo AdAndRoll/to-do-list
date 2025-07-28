@@ -4,6 +4,7 @@ import com.example.domain.repository.TaskRepository
 import com.example.domain.usecases.GetTasksUseCase
 import com.example.domain.usecases.GetUnsplashPhotosUseCase // <-- НОВЫЙ ИМПОРТ
 import com.example.domain.usecases.AddTaskUseCase // <-- НОВЫЙ ИМПОРТ (раскомментируйте, когда будете готовы)
+import com.example.domain.usecases.DeleteTaskUseCase
 import com.example.domain.usecases.RefreshTasksUseCase
 import com.example.domain.usecases.UpdateTaskUseCase
 import dagger.Module
@@ -44,5 +45,11 @@ object DomainModule {
     @Singleton
     fun provideUpdateTaskUseCase(taskRepository: TaskRepository):UpdateTaskUseCase{
         return UpdateTaskUseCase(taskRepository)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDeleteTaskUseCase(taskRepository: TaskRepository): DeleteTaskUseCase {
+        return DeleteTaskUseCase(taskRepository)
     }
 }

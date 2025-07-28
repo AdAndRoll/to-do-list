@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.domain.model.Task
 import com.example.domain.model.UnsplashPhoto // <-- НОВЫЙ ИМПОРТ
 import com.example.domain.usecases.AddTaskUseCase
+import com.example.domain.usecases.DeleteTaskUseCase
 import com.example.domain.usecases.GetTasksUseCase
 import com.example.domain.usecases.GetUnsplashPhotosUseCase // <-- НОВЫЙ ИМПОРТ
 import com.example.domain.usecases.RefreshTasksUseCase
@@ -29,7 +30,8 @@ class TaskViewModel @Inject constructor(
     private val getUnsplashPhotosUseCase: GetUnsplashPhotosUseCase,
     private val addTaskUseCase: AddTaskUseCase,
     private val refreshTasksUseCase: RefreshTasksUseCase,
-    private val updateTaskUseCase: UpdateTaskUseCase
+    private val updateTaskUseCase: UpdateTaskUseCase,
+    private val deleteTaskUseCase: DeleteTaskUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState(isLoading = true, tasks = emptyList(), error = null))
@@ -196,6 +198,20 @@ class TaskViewModel @Inject constructor(
                 Log.e("TaskViewModel", "❌ Не удалось сохранить изменения для задачи '${task.title}'.")
             } else {
                 Log.d("TaskViewModel", "✅ Задача '${task.title}' успешно отредактирована.")
+            }
+        }
+    }
+
+    fun deleteTask(taskId: Int) {
+        viewModelScope.launch {
+            Log.d("TaskViewModel", "🗑️ Попытка удалить задачу с ID: $taskId")
+            val success = deleteTaskUseCase.execute(taskId)
+            if (!success) {
+                _uiState.update { it.copy(error = "Не удалось удалить задачу с ID $taskId.") }
+                Log.e("TaskViewModel", "❌ Не удалось удалить задачу с ID $taskId.")
+            } else {
+                Log.d("TaskViewModel", "✅ Задача с ID $taskId успешно удалена.")
+                // UI обновится автоматически благодаря Flow из Room
             }
         }
     }
