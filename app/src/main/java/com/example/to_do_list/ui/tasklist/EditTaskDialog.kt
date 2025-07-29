@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
@@ -142,4 +143,22 @@ fun EditTaskDialog(
             }
         )
     }
+}
+
+@Preview
+@Composable
+fun PreviewEditTaskDialog() {
+    EditTaskDialog(
+        taskToEdit = Task(id = 1, title = "Пример задачи", status = false, imageUrl = "https://example.com/image.jpg"),
+        unsplashPhotos = listOf(
+            UnsplashPhoto("1", "https://images.unsplash.com/photo-1700662602750-9c92150192f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=Mnw1NzY0ODB8MHwxfGFsbHwxfHx8fHx8Mnx8MTcwMTQwNzk0MXw&ixlib=rb-4.0.3&q=80&w=400", "Автор 1"),
+            UnsplashPhoto("2", "https://images.unsplash.com/photo-1701205304632-63200705f14e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=Mnw1NzY0ODB8MHwxfGFsbHwyfHx8fHx8Mnx8MTcwMTQwNzk0MXw&ixlib=rb-4.0.3&q=80&w=400", "Автор 2")
+        ),
+        isPhotosLoading = false,
+        onSaveEdit = {},
+        onDismiss = {},
+        onLoadMorePhotos = {},
+        onSelectNewPhoto = {},
+        onDeleteTask = {}
+    )
 }

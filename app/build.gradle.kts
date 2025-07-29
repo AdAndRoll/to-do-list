@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.androidx.material3.android)
     implementation(libs.androidx.ui.tooling.preview.android)
     implementation(libs.androidx.room.runtime.android)
+    debugImplementation(libs.androidx.ui.tooling)
     kapt(libs.hilt.compiler)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
